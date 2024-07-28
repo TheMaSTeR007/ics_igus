@@ -12,7 +12,7 @@ def req_sender(url: str, method: str, query_dict: dict = None, cookies: dict = N
 
     # Send HTTP request
     _response = requests.request(method=method, url=url, data=query_dict, cookies=cookies, headers=headers)
-    time.sleep(5)
+    # time.sleep(5)
     # Check if response is successful
     if _response.status_code == 404:
         return 'ERROR 404'
@@ -94,13 +94,13 @@ class Scraper:
         except Exception as e:
             print(e)
 
-        # Creating Saved Pages Directory if not Exists
+        # Creating Saved Pages Directory for this Project if not Exists
         project_name = 'Ics_Igus'
 
         self.project_files_dir = f'C:\\Project Files\\{project_name}_Project_Files'
         ensure_dir_exists(dir_path=self.project_files_dir)
 
-        self.main_page_url = 'https://www.igus.com/'
+        self.main_page_url = 'https://www.igus.com/g'
 
     def scrape(self):
         # Requesting on Main Page for getting the Browse all categories links
@@ -109,12 +109,19 @@ class Scraper:
         parsed_main_html = html.fromstring(main_page_text)  # Parsing the main page response text
         xpath_products_browse = '//a[@title="Browse all Products"]/@href'
         products_browse_link = self.main_page_url[:-1] + ' '.join(parsed_main_html.xpath(xpath_products_browse))
+        print(products_browse_link)
         # Requesting on Browse all categories link for getting all categories links
         print('Products Browse Url: ', products_browse_link)
         products_browse_page_text = page_checker(url=products_browse_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Browse_Page'))
         parsed_browser_page = html.fromstring(products_browse_page_text)
-        xpath_category_links = '//a[@title="Browse the Shop"]/@href'
+        xpath_category_links = "//a[@title='Browse the Shop']/@href"
+
         category_links = parsed_browser_page.xpath(xpath_category_links)
+
+        # xpath_category_links = '//script[@id="__NEXT_DATA__"]/text()'
+        # category_links = ' '.join(parsed_browser_page.xpath(xpath_category_links))
+        # category_script_dict = json.loads(category_links)
+        # print(category_script_dict.get('props').get('pageProps').get('navigation').get('navigation')[0].get('link_children')[0].get('link_children'))
 
         # Iterating on each category links for getting their product's link
         for category_link in category_links:
@@ -124,19 +131,22 @@ class Scraper:
             parsed_category_page = html.fromstring(category_page_text)
             xpath_products_count = '//p[contains(text(), "Number of products")]/text() | //div[contains(text(), "Number of products")]//text()'
             products_count = ' '.join(parsed_category_page.xpath(xpath_products_count))
+
             if products_count:
-                print('Products count: ', products_count)
-            # if products_count:
+                products_count = int(products_count.replace('Number of products', '').replace(':', ''))
+                print('Products count:', products_count)
+                xpath_products_links = ''
             #     page_count = math.ceil(products_count / 15)
             #     print('Pages Count: ', page_count)
             #     for page_no in range(1, page_count + 1):
             #         print('On Page: ', page_no)
             #         category_link += f'/{page_no}'
-            #         category_page = page_checker(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Page'))
-            #         parsed_category_page = html.fromstring(category_page)
-            #         xpath_products_link = '//div[@class="btn__text" and text() = "Shop now"]/../@href'
-            #         products_links_list = parsed_category_page.xpath(xpath_products_link)
-            #         print('No of Proucts: ', len(products_links_list))
+            #         print(category_link)
+                    # category_page = page_checker(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Page'))
+                    # parsed_category_page = html.fromstring(category_page)
+                    # xpath_products_link = '//div[@class="btn__text" and text() = "Shop now"]/../@href'
+                    # products_links_list = parsed_category_page.xpath(xpath_products_link)
+                    # print('No of Proucts: ', len(products_links_list))
             #
             #         #  Iterating on each product's links
             #         for product_link in products_links_list:
