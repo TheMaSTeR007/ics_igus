@@ -1,17 +1,15 @@
 import math
-import time
-
 import pymysql
 import requests, os, gzip, hashlib, json
 from lxml import html
-from sql_queries import products_links_query
+from sql_queries import products_links_query, categories_links_query
 
 
-def req_sender(url: str, method: str, query_dict: dict = None, cookies: dict = None, headers: dict = None) -> bytes or None:
+def req_sender(url: str, method: str, query_dict: dict = None, cookies: dict = None, headers: dict = None, params_dict: dict = None) -> bytes or None:
     # Prepare headers for the HTTP request
 
     # Send HTTP request
-    _response = requests.request(method=method, url=url, data=query_dict, cookies=cookies, headers=headers, allow_redirects=True)
+    _response = requests.request(method=method, url=url, data=query_dict, cookies=cookies, headers=headers, allow_redirects=True, params=params_dict)
 
     # Checking if the request is Redirected or not
     if _response.history:
@@ -24,7 +22,7 @@ def req_sender(url: str, method: str, query_dict: dict = None, cookies: dict = N
             redirected_url = 'https://www.igus.com' + _response.history[-1].url
             print('blue', redirected_url)
             print('Redirected to: ', redirected_url)
-        _response = requests.request(method=method, url=redirected_url, data=query_dict, cookies=cookies, headers=headers, allow_redirects=True)
+        _response = requests.request(method=method, url=redirected_url, data=query_dict, cookies=cookies, headers=headers, allow_redirects=True, params=params_dict)
 
     # Check if response is successful
     if _response.status_code == 404:
@@ -117,7 +115,32 @@ def page_checker_json(url: str, method: str, directory_path: str, cookies: dict 
         print("File does not exist, Sending request & creating it...")  # Notify that a request will be sent
         _response = req_sender_redirected(url=url, method=method, query_dict=query_dict, cookies=cookies, headers=headers)  # Send the GET request
         if _response is not None:
-            response_json = _response.text  # Get the JSON response
+            response_json = _response.json()  # Get the JSON response
+            print(f"Filename is {page_hash}")
+            with open(file_path, 'w', encoding='UTF-8') as file:
+                json.dump(response_json, file, ensure_ascii=False, indent=4)  # Write JSON response to file
+            return response_json  # Return the JSON response as a dictionary
+
+
+def page_checker_json_new(url: str, method: str, directory_path: str, cookies: dict = None, headers: dict = None, query_dict: dict = None, params_dict: dict = None):
+    # Create a unique hash for the URL and data to use as the filename
+    hash_input = url + json.dumps(query_dict, sort_keys=True)  # Combine URL and data for hashing
+    page_hash = hashlib.sha256(hash_input.encode('UTF-8')).hexdigest()
+    ensure_dir_exists(dir_path=directory_path)  # Ensure the directory exists
+    file_path = os.path.join(directory_path, f"{page_hash}.json")  # Define file path
+
+    if os.path.exists(file_path):  # Check if the file already exists
+        print("File exists, reading it...")  # Notify that the file is being read
+        print(f"Filename is {page_hash}")
+        with open(file_path, 'r', encoding='UTF-8') as file:
+            file_text = file.read()  # Read the file
+        return json.loads(file_text)  # Return the content as a dictionary
+
+    else:
+        print("File does not exist, Sending request & creating it...")  # Notify that a request will be sent
+        _response = req_sender(url=url, method=method, query_dict=query_dict, cookies=cookies, headers=headers, params_dict = params)  # Send the GET request
+        if _response is not None:
+            response_json = _response.json()  # Get the JSON response
             print(f"Filename is {page_hash}")
             with open(file_path, 'w', encoding='UTF-8') as file:
                 json.dump(response_json, file, ensure_ascii=False, indent=4)  # Write JSON response to file
@@ -137,6 +160,10 @@ class Scraper:
         # Creating Table in Database If Not Exists
         try:
             self.cursor.execute(query=products_links_query)
+        except Exception as e:
+            print(e)
+        try:
+            self.cursor.execute(query=categories_links_query)
         except Exception as e:
             print(e)
 
@@ -164,13 +191,27 @@ class Scraper:
 
         category_links = parsed_browser_page.xpath(xpath_category_links)
 
-        # xpath_category_links = '//script[@id="__NEXT_DATA__"]/text()'
-        # category_links = ' '.join(parsed_browser_page.xpath(xpath_category_links))
-        # category_script_dict = json.loads(category_links)
-        # print(category_script_dict.get('props').get('pageProps').get('navigation').get('navigation')[0].get('link_children')[0].get('link_children'))
+        # Inserting into Table for fetching in further code
+        insert_query = f'''INSERT INTO `categories_links` (category_link)
+                            VALUES (%s);'''
+        try:
+            self.cursor.executemany(insert_query, [(link,) for link in category_links])
+        except Exception as e:
+            print(e)
+        try:
+            self.cursor.executemany(insert_query, args=[(link,) for link in category_links])
+        except Exception as e:
+            print(e)
+
+        # Fetching Categories links whose status is "Pending" for faster execution
+        fetch_query = '''SELECT * FROM `categories_links` WHERE category_status = 'Pending';'''
+        self.cursor.execute(fetch_query)
+        categories_data = self.cursor.fetchall()
 
         # Iterating on each category links for getting their product's link
-        for category_link_ in category_links:
+        for category_data in categories_data:
+            cat_id = category_data[0]
+            category_link_ = category_data[1]
             category_link = self.main_page_url[:-1] + category_link_
             print('Category Url: ', category_link)
             category_page_text = page_checker(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Categories_Pages'))
@@ -210,7 +251,85 @@ class Scraper:
                     xpath_products_link = '//div[@class="btn__text" and text() = "Shop now"]/../@href'
                     products_links_list = parsed_category_page.xpath(xpath_products_link)
                     print('No of Products: ', len(products_links_list))
+                    print(products_links_list)
+                    print('PRODUCTS LINKS IN HTML PAGE')
 
+                    ignored_list = list()
+                    for product_link in products_links_list:
+                        # Concatenating main url with relative product link
+                        product_link = 'https://www.igus.com' + product_link
+                        # checking if product url is available without request and also if the url is being redirected or not from /iProSvc/ to final product url
+
+                        if '/info/' not in product_link and '/iProSvc/' in product_link and product_link:
+                            print('Product link -iProSvc- : ', product_link)
+                            product_page = page_checker(url=product_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Product_Variant_Pages'))
+                            parsed_product_page = html.fromstring(product_page)
+                            # product_id = product_link[-14:-10]
+                            xpath_script_tag = '//script[@id="__NEXT_DATA__"]/text()'
+                            script_tag = ' '.join(parsed_product_page.xpath(xpath_script_tag))
+                            try:
+                                json_data = json.loads(script_tag)
+                                variants_list = json_data.get('props').get('pageProps').get('allProducts')
+                                for this_variant in variants_list:
+                                    item_no = this_variant.get('id_us')
+                                    print('Item No: ', item_no)
+                                    if 48 <= ord(item_no[0]) <= 57 and 48 <= ord(item_no[1]) <= 57 and 48 <= ord(item_no[2]) <= 57 and 48 <= ord(item_no[3]) <= 57:
+                                        series_text = item_no[0:4]
+                                    elif 48 <= ord(item_no[0]) <= 57 and 65 <= ord(item_no[1]) <= 90 and ord(item_no[2]) == 45 and 48 <= ord(item_no[3]) <= 57 and 48 <= ord(item_no[44]) <= 57:
+                                        series_text = item_no[0:5]
+                                    elif 48 <= ord(item_no[0]) <= 57 and 48 <= ord(item_no[1]) <= 57:
+                                        series_text = item_no[0:2]
+
+                                    product_variant_url = f'https://www.igus.com/product/series-{series_text}' + f'?artnr={item_no}'
+                                    print('Product Variant URL: ', product_variant_url)
+
+                                    # Inserting Product Variant Urls into DB Table
+                                    product_url_insert_query = f'''INSERT INTO `products_links` (product_link, category_link, page_no) VALUES ('{product_variant_url}', '{category_link}', {page_no});'''
+                                    try:
+                                        self.cursor.execute(product_url_insert_query)
+                                    except Exception as e:
+                                        print(e)
+                            except Exception as e:
+                                print('??ERROR?? Product link -iProSvc- : ', product_link)
+                                ignored_list += [product_link]
+                                with open('ignored_links.txt', 'a+') as file:
+                                    file.write(product_link + ' -=- ')
+                                print(e)
+
+                        # checking if product url is available without request and also if url is not being redirected
+                        elif '/info/' not in product_link and '/product/' in product_link:
+                            print('Product  link -product- : ', product_link)
+                            product_page = page_checker(url=product_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Product_Variant_Pages'))
+                            parsed_product_page = html.fromstring(product_page)
+
+                            xpath_script_content = "//script[contains(., 'MMA.Settings.LocalArticleData')]/text()"
+                            script_content = parsed_product_page.xpath(xpath_script_content)
+
+                            if script_content:
+                                script_text = ' '.join(script_content)
+                                # Getting Start and End index of that variable to get its value
+                                start_index = script_text.find('MMA.Settings.LocalArticleData = ') + len('MMA.Settings.LocalArticleData = ')
+                                end_index = script_text.find('};', start_index)
+                                local_article_data = script_text[start_index:end_index + 1].strip()
+                                local_article_data_dict = json.loads(local_article_data)
+                                article_no_list = local_article_data_dict.get('ProductList')[0].get('Data').get('Articles')
+                                for article_no in article_no_list:
+                                    print('ARTICLE')
+                                    part_no = article_no.get('FilterAttributes').get('PFA_1_AN')
+                                    print('Part no: ', part_no)
+                                    article_index = product_link.find('?')
+                                    product_variant_url = product_link[:article_index] + f'?artNr={part_no}'
+                                    print('Product Variant URL: ', product_variant_url)
+
+                                    # Inserting Product Variant Urls into DB Table
+                                    product_url_insert_query = f'''INSERT INTO `products_links` (product_link, category_link, page_no) VALUES ('{product_variant_url}', '{category_link}', {page_no});'''
+                                    try:
+                                        self.cursor.execute(product_url_insert_query)
+                                    except Exception as e:
+                                        print(e)
+                        print('='*25)
+
+                        print('Ignored List: x', ignored_list)
                     # Resetting the category link as its concatenating irrelevant '/products/' string
                     category_link = self.main_page_url[:-1] + category_link_
                     print('+' * 50)
@@ -228,21 +347,33 @@ class Scraper:
                 page_count = math.ceil(products_count / len(products_links_list))
                 print('Pages Count: ', page_count)
                 for page_no in range(1, page_count + 1):
-                    print('On Page: ', page_no)
+                    print('On Page: ', page_no, ' of Category: ', category_link)
 
                     # Joining /category_code/ and page_no to retrieve products links on current category page
                     category_link = f'https://www.igus.com/_next/data/{category_code}/en-US/{'/'.join(category_link.split('/')[-2:])}/{page_no}.json'
+                    print('_+_EXCEPTOR_+_')
+                    with open('exceptor.txt', 'a+') as file:
+                        file.write(category_link + ' -=- ')
                     print(category_link)
-                    category_page = page_checker_json(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Pages_Json'))
-                    print(json.dumps(category_page))
+                    params = {
+                        'categoryL1': 'gears',
+                        'categoryL2': 'iglidur-gears',
+                        'params': '2',
+                    }
+                    category_page = page_checker_json_new(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Pages_Json'), params_dict = params)
+
+                    category_page = json.loads(category_page) if isinstance(category_page, str) else category_page
+                    print(category_page.get('pageProps').get('dehydratedState').get('queries'))
                     # pageProps.dehydratedState.queries[1].state.data.products
-                    exit()
+                    print('PRODUCTS LINKS IN JSON DATA')
 
                     # Resetting the category link as its concatenating irrelevant '/products/' string
                     category_link = self.main_page_url[:-1] + category_link_
                     print('+' * 50)
 
-
+                print('+' * 50)
+            update_query = f'''UPDATE `categories_links` SET category_status = 'Done' WHERE id = {cat_id}'''
+            self.cursor.execute(update_query)
 
                 #     for product_link in products_links_list:
                 #         product_link = self.main_page_url[:-1] + product_link
@@ -262,7 +393,7 @@ class Scraper:
                 #             article_no_list = local_article_data_dict.get('ProductList')[0].get('Data').get('Articles')
                 #             for article_no in article_no_list:
                 #                 print(article_no.get('FilterAttributes').get('PFA_1_AN'))
-
+                #
                 #     page_count = math.ceil(products_count / 15)
                 #     print('Pages Count: ', page_count)
                 #     for page_no in range(1, page_count + 1):
@@ -282,7 +413,6 @@ class Scraper:
                 #             product_page = page_checker(url=product_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Page'))
                 #             parsed_product_page = html.fromstring(product_page)
 
-                print('+' * 50)
 
             print('-' * 100)
 
