@@ -6,8 +6,6 @@ from sql_queries import products_links_query, categories_links_query
 
 
 def req_sender(url: str, method: str, query_dict: dict = None, cookies: dict = None, headers: dict = None, params_dict: dict = None) -> bytes or None:
-    # Prepare headers for the HTTP request
-
     # Send HTTP request
     _response = requests.request(method=method, url=url, data=query_dict, cookies=cookies, headers=headers, allow_redirects=True, params=params_dict)
 
@@ -138,7 +136,7 @@ def page_checker_json_new(url: str, method: str, directory_path: str, cookies: d
 
     else:
         print("File does not exist, Sending request & creating it...")  # Notify that a request will be sent
-        _response = req_sender(url=url, method=method, query_dict=query_dict, cookies=cookies, headers=headers, params_dict = params)  # Send the GET request
+        _response = req_sender(url=url, method=method, query_dict=query_dict, cookies=cookies, headers=headers, params_dict=params_dict)  # Send the GET request
         if _response is not None:
             response_json = _response.json()  # Get the JSON response
             print(f"Filename is {page_hash}")
@@ -176,38 +174,13 @@ class Scraper:
         self.main_page_url = 'https://www.igus.com/'
 
     def scrape(self):
-        # Requesting on Main Page for getting the Browse all categories links
-        print('Main Page Url: ', self.main_page_url)
-        main_page_text = page_checker(url=self.main_page_url, method='GET', directory_path=os.path.join(self.project_files_dir, 'Main_Pages'))
-        parsed_main_html = html.fromstring(main_page_text)  # Parsing the main page response text
-        xpath_products_browse = '//a[@title="Browse all Products"]/@href'
-        products_browse_link = self.main_page_url[:-1] + ' '.join(parsed_main_html.xpath(xpath_products_browse))
-        print(products_browse_link)
-        # Requesting on Browse all categories link for getting all categories links
-        print('Products Browse Url: ', products_browse_link)
-        products_browse_page_text = page_checker(url=products_browse_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Browse_Pages'))
-        parsed_browser_page = html.fromstring(products_browse_page_text)
-        xpath_category_links = "//a[@title='Browse the Shop']/@href"
-
-        category_links = parsed_browser_page.xpath(xpath_category_links)
-
-        # Inserting into Table for fetching in further code
-        insert_query = f'''INSERT INTO `categories_links` (category_link)
-                            VALUES (%s);'''
-        try:
-            self.cursor.executemany(insert_query, [(link,) for link in category_links])
-        except Exception as e:
-            print(e)
-        try:
-            self.cursor.executemany(insert_query, args=[(link,) for link in category_links])
-        except Exception as e:
-            print(e)
-
         # Fetching Categories links whose status is "Pending" for faster execution
         fetch_query = '''SELECT * FROM `categories_links` WHERE category_status = 'Pending';'''
         self.cursor.execute(fetch_query)
         categories_data = self.cursor.fetchall()
+        print(len(categories_data))
 
+        exit()
         # Iterating on each category links for getting their product's link
         for category_data in categories_data:
             cat_id = category_data[0]
@@ -341,6 +314,7 @@ class Scraper:
                 products_count = script_next_data.get('props').get('pageProps').get('dehydratedState').get('queries')[1].get('state').get('data').get('total')
                 print('Total Products in redirected Category: ', products_count)
                 category_code = script_next_data.get('buildId')
+                print('Category Code: ', category_code)
 
                 products_links_list = script_next_data.get('props').get('pageProps').get('dehydratedState').get('queries')[1].get('state').get('data').get('products')
 
@@ -355,15 +329,10 @@ class Scraper:
                     with open('exceptor.txt', 'a+') as file:
                         file.write(category_link + ' -=- ')
                     print(category_link)
-                    params = {
-                        'categoryL1': 'gears',
-                        'categoryL2': 'iglidur-gears',
-                        'params': '2',
-                    }
-                    category_page = page_checker_json_new(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Pages_Json'), params_dict = params)
+                    category_page = page_checker_json_new(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Pages_Json'))
 
                     category_page = json.loads(category_page) if isinstance(category_page, str) else category_page
-                    print(category_page.get('pageProps').get('dehydratedState').get('queries'))
+                    print(category_page.get('pageProps').get('dehydratedState').get('queries')[1].get('state').get('data').get('products'))
                     # pageProps.dehydratedState.queries[1].state.data.products
                     print('PRODUCTS LINKS IN JSON DATA')
 
@@ -374,45 +343,6 @@ class Scraper:
                 print('+' * 50)
             update_query = f'''UPDATE `categories_links` SET category_status = 'Done' WHERE id = {cat_id}'''
             self.cursor.execute(update_query)
-
-                #     for product_link in products_links_list:
-                #         product_link = self.main_page_url[:-1] + product_link
-                #         print('Product Link: ', product_link)
-                #         product_page_text = page_checker(url=product_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Pages'))
-                #         parsed_product_page = html.fromstring(product_page_text)
-                #         xpath_script_content = "//script[contains(., 'MMA.Settings.LocalArticleData')]/text()"
-                #         script_content = parsed_product_page.xpath(xpath_script_content)
-                #
-                #         if script_content:
-                #             script_text = ' '.join(script_content)
-                #             # Getting Start and End index of that variable to get its value
-                #             start_index = script_text.find('MMA.Settings.LocalArticleData = ') + len('MMA.Settings.LocalArticleData = ')
-                #             end_index = script_text.find('};', start_index)
-                #             local_article_data = script_text[start_index:end_index+1].strip()
-                #             local_article_data_dict = json.loads(local_article_data)
-                #             article_no_list = local_article_data_dict.get('ProductList')[0].get('Data').get('Articles')
-                #             for article_no in article_no_list:
-                #                 print(article_no.get('FilterAttributes').get('PFA_1_AN'))
-                #
-                #     page_count = math.ceil(products_count / 15)
-                #     print('Pages Count: ', page_count)
-                #     for page_no in range(1, page_count + 1):
-                #         print('On Page: ', page_no)
-                #         category_link += f'/{page_no}'
-                #         print(category_link)
-                # category_page = page_checker(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Page'))
-                # parsed_category_page = html.fromstring(category_page)
-                # xpath_products_link = '//div[@class="btn__text" and text() = "Shop now"]/../@href'
-                # products_links_list = parsed_category_page.xpath(xpath_products_link)
-                # print('No of Proucts: ', len(products_links_list))
-                #
-                #         #  Iterating on each product's links
-                #         for product_link in products_links_list:
-                #             product_link = self.main_page_url[:-1] + product_link
-                #             print('Product Link: ', product_link)
-                #             product_page = page_checker(url=product_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Page'))
-                #             parsed_product_page = html.fromstring(product_page)
-
 
             print('-' * 100)
 
