@@ -15,4 +15,4 @@ def func(_start, _end, _parts):
             file.write(f'start python -m products_variants_links_scraper {start_id} {end_id}\n')
 
 
-func(_start=1, _end=8205, _parts=25)
+func(_start=1, _end=8205, _parts=10)

@@ -31,56 +31,6 @@ def ensure_dir_exists(dir_path: str):
         print(f'Directory {dir_path} Created')  # Print confirmation of directory creation
 
 
-def page_checker_json(url: str, method: str, directory_path: str, cookies: dict = None, headers: dict = None, query_dict: dict = None):
-    # Create a unique hash for the URL and data to use as the filename
-    hash_input = url + json.dumps(query_dict, sort_keys=True)  # Combine URL and data for hashing
-    page_hash = hashlib.sha256(hash_input.encode('UTF-8')).hexdigest()
-    ensure_dir_exists(dir_path=directory_path)  # Ensure the directory exists
-    file_path = os.path.join(directory_path, f"{page_hash}.json")  # Define file path
-
-    if os.path.exists(file_path):  # Check if the file already exists
-        print("File exists, reading it...")  # Notify that the file is being read
-        print(f"Filename is {page_hash}")
-        with open(file_path, 'r', encoding='UTF-8') as file:
-            file_text = file.read()  # Read the file
-        return json.loads(file_text)  # Return the content as a dictionary
-
-    else:
-        print("File does not exist, Sending request & creating it...")  # Notify that a request will be sent
-        _response = req_sender(url=url, method=method, query_dict=query_dict, cookies=cookies, headers=headers)  # Send the GET request
-        if _response is not None:
-            response_json = _response.json()  # Get the JSON response
-            print(f"Filename is {page_hash}")
-            with open(file_path, 'w', encoding='UTF-8') as file:
-                json.dump(response_json, file, ensure_ascii=False, indent=4)  # Write JSON response to file
-            return response_json  # Return the JSON response as a dictionary
-
-
-def page_checker_json_new(url: str, method: str, directory_path: str, cookies: dict = None, headers: dict = None, query_dict: dict = None, params_dict: dict = None):
-    # Create a unique hash for the URL and data to use as the filename
-    hash_input = url + json.dumps(query_dict, sort_keys=True)  # Combine URL and data for hashing
-    page_hash = hashlib.sha256(hash_input.encode('UTF-8')).hexdigest()
-    ensure_dir_exists(dir_path=directory_path)  # Ensure the directory exists
-    file_path = os.path.join(directory_path, f"{page_hash}.json")  # Define file path
-
-    if os.path.exists(file_path):  # Check if the file already exists
-        print("File exists, reading it...")  # Notify that the file is being read
-        print(f"Filename is {page_hash}")
-        with open(file_path, 'r', encoding='UTF-8') as file:
-            file_text = file.read()  # Read the file
-        return json.loads(file_text)  # Return the content as a dictionary
-
-    else:
-        print("File does not exist, Sending request & creating it...")  # Notify that a request will be sent
-        _response = req_sender(url=url, method=method, query_dict=query_dict, cookies=cookies, headers=headers)  # Send the GET request
-        if _response is not None:
-            response_json = _response.json()  # Get the JSON response
-            print(f"Filename is {page_hash}")
-            with open(file_path, 'w', encoding='UTF-8') as file:
-                json.dump(response_json, file, ensure_ascii=False, indent=4)  # Write JSON response to file
-            return response_json  # Return the JSON response as a dictionary
-
-
 class Scraper:
     def __init__(self):
         # Connecting to the Database

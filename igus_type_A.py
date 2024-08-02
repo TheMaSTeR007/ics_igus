@@ -293,10 +293,10 @@ class Scraper:
                         #     print('Product  link -product- : ', product_link)
                         #     product_page = self.page_checker(url=product_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Product_Variant_Pages'))
                         #     parsed_product_page = html.fromstring(product_page)
+                        #
+                        #     xpath_script_content = "//script[contains(., 'MMA.Settings.LocalArticleData')]/text()"
+                        #     script_content = parsed_product_page.xpath(xpath_script_content)
 
-                            # xpath_script_content = "//script[contains(., 'MMA.Settings.LocalArticleData')]/text()"
-                            # script_content = parsed_product_page.xpath(xpath_script_content)
-                            #
                             # if script_content:
                             #     script_text = ' '.join(script_content)
                             #     # Getting Start and End index of that variable to get its value

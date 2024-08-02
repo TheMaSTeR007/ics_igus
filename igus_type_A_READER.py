@@ -266,20 +266,20 @@ class Scraper:
 
             print('+' * 50)
 
-                    # INSERTING CATEGORY LINKS WITH PAGE NO INTO TABLE
-                    # category_page_table_name = 'category_page_table'
-                    #
-                    # category_page_insert_query = f'''INSERT INTO {category_page_table_name} (category_page_link, category_url) VALUES (%s, %s);'''
-                    # try:
-                    #     self.cursor.execute(category_page_insert_query, args=(category_link_page_no, category_link_raw))
-                    # except Exception as error:
-                    #     print('Category Page Link Error: ', error)
-                    # category_page = page_checker_json_new(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Pages_Json'))
-                    #
-                    # category_page = json.loads(category_page) if isinstance(category_page, str) else category_page
-                    # print(category_page.get('pageProps').get('dehydratedState').get('queries')[1].get('state').get('data').get('products'))
-                    # # pageProps.dehydratedState.queries[1].state.data.products
-                    # print('PRODUCTS LINKS IN JSON DATA')
+            # INSERTING CATEGORY LINKS WITH PAGE NO INTO TABLE
+            # category_page_table_name = 'category_page_table'
+            #
+            # category_page_insert_query = f'''INSERT INTO {category_page_table_name} (category_page_link, category_url) VALUES (%s, %s);'''
+            # try:
+            #     self.cursor.execute(category_page_insert_query, args=(category_link_page_no, category_link_raw))
+            # except Exception as error:
+            #     print('Category Page Link Error: ', error)
+            # category_page = page_checker_json_new(url=category_link, method='GET', directory_path=os.path.join(self.project_files_dir, 'Products_Pages_Json'))
+            #
+            # category_page = json.loads(category_page) if isinstance(category_page, str) else category_page
+            # print(category_page.get('pageProps').get('dehydratedState').get('queries')[1].get('state').get('data').get('products'))
+            # # pageProps.dehydratedState.queries[1].state.data.products
+            # print('PRODUCTS LINKS IN JSON DATA')
 
 
 

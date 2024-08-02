@@ -53,3 +53,11 @@ products_links_page_table_query = '''CREATE TABLE IF NOT EXISTS products_links_p
                             category_url VARCHAR(255),
                             product_page_link_status VARCHAR(255) DEFAULT 'Pending'
                             );'''
+
+products_variants_links_page_table_query = '''CREATE TABLE IF NOT EXISTS products_variants_links_page_table(
+                                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                                product_variant_link VARCHAR(255) UNIQUE,
+                                                product_main_link VARCHAR(255),
+                                                category_page_url VARCHAR(255),
+                                                category_url VARCHAR(255)
+                                                );'''
